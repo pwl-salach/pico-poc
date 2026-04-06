@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+firmware = "target/thumbv6m-none-eabi/release/pico-poc"
+vcdFile = 'logic-capture.vcd'

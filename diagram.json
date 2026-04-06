@@ -1,0 +1,202 @@
+{
+  "version": 1,
+  "author": "Anonymous maker",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-pi-pico",
+      "id": "pico",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "chip-pca9685",
+      "id": "chip1",
+      "top": 29.82,
+      "left": -244.8,
+      "attrs": {
+        "gen_debug": "1",
+        "i2c_debug": "1",
+        "debug_timer": "1"
+      }
+    },
+    {
+      "type": "wokwi-logic-analyzer",
+      "id": "logic1",
+      "top": -162.85,
+      "left": -57.6,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led0",
+      "top": -13.2,
+      "left": -399.4,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo1",
+      "top": 102.8,
+      "left": -554,
+      "rotate": 180,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    [
+      "pico:GP0",
+      "$serialMonitor:RX",
+      "",
+      []
+    ],
+    [
+      "pico:GP1",
+      "$serialMonitor:TX",
+      "",
+      []
+    ],
+    [
+      "pico:GP4",
+      "chip1:SDA",
+      "orange",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "pico:GP5",
+      "chip1:SCL",
+      "purple",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "chip1:LED1",
+      "servo1:PWM",
+      "orange",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "pico:GND.1",
+      "servo1:GND",
+      "black",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "chip1:LED0",
+      "led0:A",
+      "red",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "logic1:D0",
+      "chip1:LED0",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "logic1:D6",
+      "chip1:SDA",
+      "orange",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "logic1:D7",
+      "chip1:SCL",
+      "purple",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "logic1:D1",
+      "chip1:LED1",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "logic1:D2",
+      "chip1:LED2",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "logic1:D3",
+      "chip1:LED3",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "logic1:D4",
+      "chip1:LED4",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "logic1:D5",
+      "chip1:LED5",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "chip1:OE",
+      "pico:GND.1",
+      "black",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "pico:GND.1",
+      "led0:C",
+      "black",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "pico:VSYS",
+      "chip1:VSS",
+      "red",
+      [
+        "h0"
+      ]
+    ],
+    [
+      "pico:VSYS",
+      "servo1:V+",
+      "red",
+      [
+        "h0"
+      ]
+    ]
+  ],
+  "dependencies": {
+    "chip-pca9685": "github:bonnyr/wokwi-pca9685-custom-chip@0.1.1"
+  }
+}
