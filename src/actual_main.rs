@@ -4,12 +4,20 @@ use embedded_hal::digital::OutputPin;
 #[cfg(rp2350)]
 use rp235x_hal as hal;
 #[cfg(rp2350)]
+use rp235x_hal::Clock;
+#[cfg(rp2350)]
 use rp235x_hal::fugit::RateExtU32;
+#[cfg(rp2350)]
+use rp235x_hal::uart::{DataBits, StopBits, UartConfig};
 
 #[cfg(rp2040)]
 use rp2040_hal as hal;
 #[cfg(rp2040)]
+use rp2040_hal::Clock;
+#[cfg(rp2040)]
 use rp2040_hal::fugit::RateExtU32;
+#[cfg(rp2040)]
+use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 
 use crate::XTAL_FREQ_HZ;
 use crate::pca9685::Pca9685;
@@ -61,27 +69,83 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
         pac.I2C0,
         sda,
         scl,
-        100.kHz(), // 100 kHz
+        100.kHz(),
         &mut pac.RESETS,
-        25.MHz(), // system clock
+        clocks.system_clock.freq(),
     );
 
     let mut pca9685 = Pca9685::new(i2c);
     pca9685.init().unwrap();
-    pca9685.set_pwm_freq(50.0).unwrap();
-    pca9685.set_servo_angle(1, 45.0, 1000, 2000).unwrap();
+    pca9685.set_pwm_freq(60.0).unwrap();
 
-    program_loop(timer, led_pin);
+    let uart_pins = (
+        pins.gpio0.into_function::<hal::gpio::FunctionUart>(),
+        pins.gpio1.into_function::<hal::gpio::FunctionUart>(),
+    );
+    let mut uart = hal::uart::UartPeripheral::new(pac.UART0, uart_pins, &mut pac.RESETS)
+        .enable(
+            UartConfig::new(9600.Hz(), DataBits::Eight, None, StopBits::One),
+            clocks.peripheral_clock.freq(),
+        )
+        .unwrap();
+    // let mut pwm_slices = hal::pwm::Slices::new(pac.PWM, &mut pac.RESETS);
+    // let pwm = &mut pwm_slices.pwm2;
+    // pwm.set_ph_correct();
+    // pwm.enable();
+    // let pwm_pin = pins.gpio21.into_function::<hal::gpio::FunctionPwm>();
+    // let channel = &mut pwm.channel_b;
+    // channel.output_to(pwm_pin);
+
+    program_loop(timer, led_pin, pca9685, uart);
 }
 
-fn program_loop(mut timer: hal::Timer, mut led_pin: impl OutputPin) -> ! {
+fn program_loop<I2C, D, P>(
+    mut timer: hal::Timer,
+    mut led_pin: impl OutputPin,
+    mut pca9685: Pca9685<I2C>,
+    mut uart: hal::uart::UartPeripheral<hal::uart::Enabled, D, P>,
+    // mut channel: &mut hal::pwm::Channel<
+    //     hal::pwm::Slice<hal::pwm::Pwm2, hal::pwm::FreeRunning>,
+    //     hal::pwm::B,
+    // >,
+) -> !
+where
+    I2C: embedded_hal::i2c::I2c,
+    D: hal::uart::UartDevice,
+    P: hal::uart::ValidUartPinout<D>,
+{
+    // const LOW: u16 = 0;
+    // const HIGH: u16 = 25000;
+    let mut buffer = [0u8; 32];
+
     loop {
         // Animate LED0 as before
         defmt::info!("on!");
         led_pin.set_high().unwrap();
+        // pca9685.set_servo_angle(1, 45.0, 1000, 2000).unwrap();
+        pca9685.set_pwm(0, 0, 200).unwrap();
+        pca9685.set_pwm(1, 0, 200).unwrap();
+        // timer.delay_ms(50);
+        // for i in (LOW..=HIGH).step_by(25) {
+        //     timer.delay_us(500);
+        //     channel.set_duty(i);
+        // }
         timer.delay_ms(500);
+
         defmt::info!("off!");
         led_pin.set_low().unwrap();
+        // pca9685.set_servo_angle(1, 90.0, 1000, 2000).unwrap();
+        pca9685.set_pwm(0, 0, 400).unwrap();
+        pca9685.set_pwm(1, 0, 400).unwrap();
+        // Ramp brightness down
+        // for i in (LOW..=HIGH).rev().step_by(25) {
+        //     timer.delay_us(50);
+        //     channel.set_duty(i);
+        // }
         timer.delay_ms(500);
+        while let Ok(n) = uart.read_raw(&mut buffer) {
+            // echo exactly what we got
+            uart.write_full_blocking(&buffer[..n]);
+        }
     }
 }
