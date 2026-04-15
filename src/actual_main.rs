@@ -74,7 +74,7 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
         clocks.system_clock.freq(),
     );
 
-    let mut pca9685 = Pca9685::new(i2c);
+    let mut pca9685 = Pca9685::new_default(i2c);
     pca9685.init().unwrap();
     pca9685.set_pwm_freq(60.0).unwrap();
 
