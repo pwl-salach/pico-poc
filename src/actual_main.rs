@@ -20,7 +20,7 @@ use rp2040_hal::fugit::RateExtU32;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 
 use crate::XTAL_FREQ_HZ;
-use crate::pca9685::Pca9685;
+use crate::pca9685::{Pca9685, ServoConfig};
 
 pub fn main(mut pac: hal::pac::Peripherals) -> ! {
     // Set up the watchdog driver - needed by the clock setup code
@@ -74,15 +74,21 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
         clocks.system_clock.freq(),
     );
 
-    let mut pca9685 = Pca9685::new_default(i2c);
+    let mut servos = [None; 16];
+    servos[1] = Some(ServoConfig {
+        min_pulse: 1000,
+        max_pulse: 2000,
+        current_angle: 0.0,
+    });
+
+    let mut pca9685 = Pca9685::new_default(i2c, servos);
     pca9685.init().unwrap();
-    pca9685.set_pwm_freq(60.0).unwrap();
 
     let uart_pins = (
         pins.gpio0.into_function::<hal::gpio::FunctionUart>(),
         pins.gpio1.into_function::<hal::gpio::FunctionUart>(),
     );
-    let mut uart = hal::uart::UartPeripheral::new(pac.UART0, uart_pins, &mut pac.RESETS)
+    let uart = hal::uart::UartPeripheral::new(pac.UART0, uart_pins, &mut pac.RESETS)
         .enable(
             UartConfig::new(9600.Hz(), DataBits::Eight, None, StopBits::One),
             clocks.peripheral_clock.freq(),
