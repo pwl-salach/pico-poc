@@ -19,8 +19,8 @@ use rp2040_hal::fugit::RateExtU32;
 #[cfg(rp2040)]
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 
-use crate::XTAL_FREQ_HZ;
 use crate::pca9685::{Pca9685, ServoConfig};
+use crate::{XTAL_FREQ_HZ, pca9685};
 
 pub fn main(mut pac: hal::pac::Peripherals) -> ! {
     // Set up the watchdog driver - needed by the clock setup code
@@ -39,10 +39,10 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
     .unwrap();
 
     #[cfg(rp2040)]
-    let mut timer = hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
+    let timer = hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
 
     #[cfg(rp2350)]
-    let mut timer = hal::Timer::new_timer0(pac.TIMER0, &mut pac.RESETS, &clocks);
+    let timer = hal::Timer::new_timer0(pac.TIMER0, &mut pac.RESETS, &clocks);
 
     // The single-cycle I/O block controls our GPIO pins
     let sio = hal::Sio::new(pac.SIO);
@@ -75,6 +75,11 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
     );
 
     let mut servos = [None; 16];
+    servos[0] = Some(ServoConfig {
+        min_pulse: 0,
+        max_pulse: 20_000,
+        current_angle: 0.0,
+    });
     servos[1] = Some(ServoConfig {
         min_pulse: 1000,
         max_pulse: 2000,
@@ -109,7 +114,7 @@ fn program_loop<I2C, D, P>(
     mut timer: hal::Timer,
     mut led_pin: impl OutputPin,
     mut pca9685: Pca9685<I2C>,
-    mut uart: hal::uart::UartPeripheral<hal::uart::Enabled, D, P>,
+    uart: hal::uart::UartPeripheral<hal::uart::Enabled, D, P>,
     // mut channel: &mut hal::pwm::Channel<
     //     hal::pwm::Slice<hal::pwm::Pwm2, hal::pwm::FreeRunning>,
     //     hal::pwm::B,
@@ -128,10 +133,10 @@ where
         // Animate LED0 as before
         defmt::info!("on!");
         led_pin.set_high().unwrap();
-        // pca9685.set_servo_angle(1, 45.0, 1000, 2000).unwrap();
-        pca9685.set_pwm(0, 0, 200).unwrap();
-        pca9685.set_pwm(1, 0, 200).unwrap();
-        // timer.delay_ms(50);
+        pca9685.set_servo_angle(1, 90.0).unwrap();
+        pca9685.set_servo_angle(0, 90.0).unwrap();
+
+        pca9685.update_all_servos().unwrap();
         // for i in (LOW..=HIGH).step_by(25) {
         //     timer.delay_us(500);
         //     channel.set_duty(i);
@@ -140,9 +145,9 @@ where
 
         defmt::info!("off!");
         led_pin.set_low().unwrap();
-        // pca9685.set_servo_angle(1, 90.0, 1000, 2000).unwrap();
-        pca9685.set_pwm(0, 0, 400).unwrap();
-        pca9685.set_pwm(1, 0, 400).unwrap();
+        pca9685.set_servo_angle(1, 45.0).unwrap();
+        pca9685.set_servo_angle(0, 45.0).unwrap();
+        pca9685.update_all_servos().unwrap();
         // Ramp brightness down
         // for i in (LOW..=HIGH).rev().step_by(25) {
         //     timer.delay_us(50);

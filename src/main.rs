@@ -64,9 +64,7 @@ const XTAL_FREQ_HZ: u32 = 12_000_000u32;
 #[entry]
 fn main() -> ! {
     info!("Program start");
-    // Grab our singleton objects
-    let mut pac = hal::pac::Peripherals::take().unwrap();
-
+    let pac = hal::pac::Peripherals::take().unwrap();
     actual_main::main(pac);
 }
 

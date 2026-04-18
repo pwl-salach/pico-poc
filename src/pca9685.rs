@@ -125,14 +125,10 @@ impl<I2C: I2c> Pca9685<I2C> {
         &mut self,
         channel: u8,
         angle: f32,
-        update_immediately: Option<bool>,
     ) -> Result<(), Pca9685Error<I2C::Error>> {
         let angle = angle.clamp(0.0, 180.0);
         let servo = self.get_servo_for_channel(channel).unwrap();
         servo.current_angle = angle;
-        if update_immediately.unwrap_or(false) {
-            self.update_servo(channel)?;
-        }
         Ok(())
     }
 
