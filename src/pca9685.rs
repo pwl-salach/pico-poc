@@ -1,16 +1,16 @@
 use embedded_hal::i2c::I2c;
 
 const DEFAULT_ADDR: u8 = 0x40; // Default I2C address for PCA9685
-const DEFAULT_OSC_FREQ: f32 = 25_000_000.0; // Internal oscillator frequency (Hz)
+const DEFAULT_OSC_FREQ: f32 = 25_000_000.0; // Internal oscillator frequency
 const PWM_RESOLUTION: f32 = 4096.0; // 12-bit counter, fixed by hardware
-const PWM_FREQ_HZ: f32 = 50.0; // Default PWM frequency for servos (Hz)
+const PWM_FREQ_HZ: f32 = 50.0; // Default PWM frequency for servos
 const MIN_PWM_FREQ_HZ: f32 = 40.0; // Datasheet practical low limit
 const MAX_PWM_FREQ_HZ: f32 = 1000.0; // Datasheet practical high limit
 
 #[derive(Debug, Clone, Copy)]
 pub struct ServoConfig {
-    pub min_pulse: u16, // in microseconds
-    pub max_pulse: u16, // in microseconds
+    pub min_pulse_ms: u16,
+    pub max_pulse_ms: u16,
     pub current_angle: f32,
 }
 
@@ -66,6 +66,8 @@ impl<I2C: I2c> Pca9685<I2C> {
     }
 
     fn set_pwm_freq(&mut self, mut freq_hz: f32) -> Result<(), I2C::Error> {
+        // TODO: Validate implementation against datasheet
+
         // One global PWM base frequency shared by all 16 channels.
         // Datasheet practical range for PCA9685 is about 40..1000 Hz.
         if freq_hz < MIN_PWM_FREQ_HZ {
@@ -108,7 +110,6 @@ impl<I2C: I2c> Pca9685<I2C> {
     }
 
     pub fn set_pwm(&mut self, channel: u8, on: u16, off: u16) -> Result<(), I2C::Error> {
-        // Write the register address and 4 bytes for ON/OFF
         let reg = 0x06 + 4 * channel;
         let data = [
             reg,
@@ -163,9 +164,9 @@ impl<I2C: I2c> Pca9685<I2C> {
         channel: u8,
     ) -> Result<[u8; 5], Pca9685Error<I2C::Error>> {
         let servo = self.get_servo_for_channel(channel)?;
-        let pulse_range = servo.max_pulse - servo.min_pulse;
+        let pulse_range = servo.max_pulse_ms - servo.min_pulse_ms;
         let pulse_width =
-            servo.min_pulse as f32 + (servo.current_angle / 180.0) * pulse_range as f32;
+            servo.min_pulse_ms as f32 + (servo.current_angle / 180.0) * pulse_range as f32;
         let ticks = ((pulse_width / 1_000_000.0) * self.pwm_freq_hz * PWM_RESOLUTION) as u16;
 
         let reg = 0x06 + 4 * channel;

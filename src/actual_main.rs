@@ -63,13 +63,13 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
 
     let mut servos = [None; 16];
     servos[0] = Some(ServoConfig {
-        min_pulse: 0,
-        max_pulse: 20_000,
+        min_pulse_ms: 0,
+        max_pulse_ms: 20_000,
         current_angle: 0.0,
     });
     servos[1] = Some(ServoConfig {
-        min_pulse: 1000,
-        max_pulse: 2000,
+        min_pulse_ms: 1000,
+        max_pulse_ms: 2000,
         current_angle: 0.0,
     });
 
