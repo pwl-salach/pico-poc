@@ -33,6 +33,7 @@ use rp2040_hal as hal;
 // use rp_pico as bsp;
 
 mod actual_main;
+mod controls;
 mod pca9685;
 
 /// The linker will place this boot block at the start of our program image. We

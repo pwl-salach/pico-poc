@@ -132,6 +132,17 @@ impl<I2C: I2c> Pca9685<I2C> {
         Ok(())
     }
 
+    pub fn move_servo_by_step(
+        &mut self,
+        channel: u8,
+        step: i8,
+    ) -> Result<(), Pca9685Error<I2C::Error>> {
+        let servo = self.get_servo_for_channel(channel).unwrap();
+        let new_angle = (servo.current_angle + step as f32).clamp(0.0, 180.0);
+        servo.current_angle = new_angle;
+        Ok(())
+    }
+
     pub fn update_all_servos(&mut self) -> Result<(), I2C::Error> {
         for channel in 0..16 {
             if self.servos[channel as usize].is_some() {

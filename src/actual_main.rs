@@ -1,26 +1,13 @@
+use crate::hal::uart::{DataBits, StopBits, UartConfig};
+use crate::{hal, hal::Clock, hal::fugit::RateExtU32};
 use embedded_hal::delay::DelayNs;
 use embedded_hal::digital::OutputPin;
 
-#[cfg(rp2350)]
-use rp235x_hal as hal;
-#[cfg(rp2350)]
-use rp235x_hal::Clock;
-#[cfg(rp2350)]
-use rp235x_hal::fugit::RateExtU32;
-#[cfg(rp2350)]
-use rp235x_hal::uart::{DataBits, StopBits, UartConfig};
-
-#[cfg(rp2040)]
-use rp2040_hal as hal;
-#[cfg(rp2040)]
-use rp2040_hal::Clock;
-#[cfg(rp2040)]
-use rp2040_hal::fugit::RateExtU32;
-#[cfg(rp2040)]
-use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
-
+use crate::XTAL_FREQ_HZ;
+use crate::controls::{
+    ControlCommand, InputDevice, bt_controls::HC05, buttons_controls::ButtonsControls,
+};
 use crate::pca9685::{Pca9685, ServoConfig};
-use crate::{XTAL_FREQ_HZ, pca9685};
 
 pub fn main(mut pac: hal::pac::Peripherals) -> ! {
     // Set up the watchdog driver - needed by the clock setup code
@@ -99,6 +86,9 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
             clocks.peripheral_clock.freq(),
         )
         .unwrap();
+
+    let hc_05 = HC05::new(uart);
+
     // let mut pwm_slices = hal::pwm::Slices::new(pac.PWM, &mut pac.RESETS);
     // let pwm = &mut pwm_slices.pwm2;
     // pwm.set_ph_correct();
@@ -106,15 +96,22 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
     // let pwm_pin = pins.gpio21.into_function::<hal::gpio::FunctionPwm>();
     // let channel = &mut pwm.channel_b;
     // channel.output_to(pwm_pin);
+    let buttons_contr = ButtonsControls::new(
+        pins.gpio6.into_pull_up_input(),
+        pins.gpio7.into_pull_up_input(),
+        pins.gpio8.into_pull_up_input(),
+        pins.gpio9.into_pull_up_input(),
+    );
 
-    program_loop(timer, led_pin, pca9685, uart);
+    program_loop(timer, led_pin, pca9685, buttons_contr);
 }
 
-fn program_loop<I2C, D, P>(
+fn program_loop<I2C>(
     mut timer: hal::Timer,
     mut led_pin: impl OutputPin,
     mut pca9685: Pca9685<I2C>,
-    uart: hal::uart::UartPeripheral<hal::uart::Enabled, D, P>,
+    mut input_device: impl InputDevice,
+    // uart: hal::uart::UartPeripheral<hal::uart::Enabled, D, P>,
     // mut channel: &mut hal::pwm::Channel<
     //     hal::pwm::Slice<hal::pwm::Pwm2, hal::pwm::FreeRunning>,
     //     hal::pwm::B,
@@ -122,13 +119,7 @@ fn program_loop<I2C, D, P>(
 ) -> !
 where
     I2C: embedded_hal::i2c::I2c,
-    D: hal::uart::UartDevice,
-    P: hal::uart::ValidUartPinout<D>,
 {
-    // const LOW: u16 = 0;
-    // const HIGH: u16 = 25000;
-    let mut buffer = [0u8; 32];
-
     loop {
         // Animate LED0 as before
         defmt::info!("on!");
@@ -154,9 +145,20 @@ where
         //     channel.set_duty(i);
         // }
         timer.delay_ms(500);
-        while let Ok(n) = uart.read_raw(&mut buffer) {
-            // echo exactly what we got
-            uart.write_full_blocking(&buffer[..n]);
+
+        let input = input_device.read_input().unwrap();
+        match input {
+            ControlCommand::Servo(cmd) => {
+                pca9685
+                    .set_servo_angle(cmd.servo_index, cmd.step as f32 * 10.0)
+                    .unwrap();
+            }
+            ControlCommand::Effector(cmd) => {
+                // Handle effector command
+            }
+            ControlCommand::Config(cmd) => {
+                // Handle configuration command
+            }
         }
     }
 }
