@@ -101,6 +101,7 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
         pins.gpio7.into_pull_up_input(),
         pins.gpio8.into_pull_up_input(),
         pins.gpio9.into_pull_up_input(),
+        pins.gpio10.into_pull_up_input(),
     );
 
     program_loop(timer, led_pin, pca9685, buttons_contr);

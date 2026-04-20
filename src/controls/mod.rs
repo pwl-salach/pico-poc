@@ -17,7 +17,7 @@ pub struct EffectorCommand {
     pub direction: EffectorDirection,
     pub step: u8,
 }
-
+#[derive(Default)]
 pub struct ConfigCommand {
     // Add fields for configuration parameters
 }
