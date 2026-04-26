@@ -1,12 +1,15 @@
 use crate::hal::uart::{DataBits, StopBits, UartConfig};
+use crate::messengers::Messenger;
 use crate::{hal, hal::Clock, hal::fugit::RateExtU32};
 use embedded_hal::delay::DelayNs;
 use embedded_hal::digital::OutputPin;
+use rp2040_hal::fugit::Rate;
 
 use crate::XTAL_FREQ_HZ;
 use crate::controls::{
     ControlCommand, InputDevice, bt_controls::HC05, buttons_controls::ButtonsControls,
 };
+use crate::messengers::lcd::LcdMessenger;
 use crate::pca9685::{Pca9685, ServoConfig};
 
 pub fn main(mut pac: hal::pac::Peripherals) -> ! {
@@ -42,6 +45,8 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
         &mut pac.RESETS,
     );
 
+    const I2C_FREQ_HZ: u32 = 100_000;
+
     // Configure GPIO25 as an output
     let led_pin = pins.gpio25.into_push_pull_output();
 
@@ -56,7 +61,7 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
         pac.I2C0,
         sda,
         scl,
-        100.kHz(),
+        I2C_FREQ_HZ.kHz(),
         &mut pac.RESETS,
         clocks.system_clock.freq(),
     );
@@ -87,7 +92,7 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
         )
         .unwrap();
 
-    let hc_05 = HC05::new(uart);
+    // let hc_05 = HC05::new(uart);
 
     // let mut pwm_slices = hal::pwm::Slices::new(pac.PWM, &mut pac.RESETS);
     // let pwm = &mut pwm_slices.pwm2;
@@ -102,7 +107,27 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
         pins.gpio8.into_pull_up_input(),
         pins.gpio9.into_pull_up_input(),
         pins.gpio10.into_pull_up_input(),
+        pins.gpio11.into_pull_up_input(),
+        pins.gpio12.into_pull_up_input(),
     );
+
+    let sda = pins
+        .gpio18
+        .reconfigure::<hal::gpio::FunctionI2C, hal::gpio::PullUp>();
+    let scl = pins
+        .gpio19
+        .reconfigure::<hal::gpio::FunctionI2C, hal::gpio::PullUp>();
+
+    let i2c = hal::i2c::I2C::i2c1(
+        pac.I2C1,
+        sda,
+        scl,
+        I2C_FREQ_HZ.kHz(),
+        &mut pac.RESETS,
+        clocks.system_clock.freq(),
+    );
+    let mut lcd = LcdMessenger::new(i2c, timer);
+    lcd.send_message("Hello, Pico!");
 
     program_loop(timer, led_pin, pca9685, buttons_contr);
 }
@@ -151,7 +176,7 @@ where
         match input {
             ControlCommand::Servo(cmd) => {
                 pca9685
-                    .set_servo_angle(cmd.servo_index, cmd.step as f32 * 10.0)
+                    .move_servo_by_step(cmd.servo_index, cmd.step)
                     .unwrap();
             }
             ControlCommand::Effector(cmd) => {
@@ -161,5 +186,6 @@ where
                 // Handle configuration command
             }
         }
+        pca9685.update_all_servos().unwrap();
     }
 }

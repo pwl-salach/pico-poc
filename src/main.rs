@@ -34,6 +34,7 @@ use rp2040_hal as hal;
 
 mod actual_main;
 mod controls;
+mod messengers;
 mod pca9685;
 
 /// The linker will place this boot block at the start of our program image. We

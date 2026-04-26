@@ -9,6 +9,8 @@ pub struct ServoCommand {
 enum EffectorDirection {
     Up,
     Down,
+    Forward,
+    Backward,
     Left,
     Right,
 }
