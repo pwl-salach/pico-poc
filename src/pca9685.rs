@@ -20,6 +20,15 @@ pub enum Pca9685Error<I2CErr> {
     ServoNotConfigured,
 }
 
+impl<I2CErr> Pca9685Error<I2CErr> {
+    pub fn message(&self) -> &'static str {
+        match self {
+            Pca9685Error::I2c(_) => "PCA9685 I2C error",
+            Pca9685Error::ServoNotConfigured => "Servo not configured",
+        }
+    }
+}
+
 impl<I2CErr> From<I2CErr> for Pca9685Error<I2CErr> {
     fn from(err: I2CErr) -> Self {
         Pca9685Error::I2c(err)

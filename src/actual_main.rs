@@ -1,16 +1,15 @@
-use crate::hal::uart::{DataBits, StopBits, UartConfig};
-use crate::messengers::Messenger;
-use crate::{hal, hal::Clock, hal::fugit::RateExtU32};
-use embedded_hal::delay::DelayNs;
-use embedded_hal::digital::OutputPin;
-use rp2040_hal::fugit::Rate;
-
 use crate::XTAL_FREQ_HZ;
 use crate::controls::{
     ControlCommand, InputDevice, bt_controls::HC05, buttons_controls::ButtonsControls,
 };
 use crate::messengers::lcd::LcdMessenger;
+use crate::messengers::{MessageLevel, broadcaster::Broadcaster, logger::Logger};
 use crate::pca9685::{Pca9685, ServoConfig};
+use crate::{hal, hal::Clock, hal::fugit::RateExtU32};
+use core::fmt::Write;
+use embedded_hal::delay::DelayNs;
+use embedded_hal::digital::OutputPin;
+use heapless::String;
 
 pub fn main(mut pac: hal::pac::Peripherals) -> ! {
     // Set up the watchdog driver - needed by the clock setup code
@@ -47,9 +46,6 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
 
     const I2C_FREQ_HZ: u32 = 100_000;
 
-    // Configure GPIO25 as an output
-    let led_pin = pins.gpio25.into_push_pull_output();
-
     let sda = pins
         .gpio4
         .reconfigure::<hal::gpio::FunctionI2C, hal::gpio::PullUp>();
@@ -85,13 +81,12 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
         pins.gpio0.into_function::<hal::gpio::FunctionUart>(),
         pins.gpio1.into_function::<hal::gpio::FunctionUart>(),
     );
-    let uart = hal::uart::UartPeripheral::new(pac.UART0, uart_pins, &mut pac.RESETS)
-        .enable(
-            UartConfig::new(9600.Hz(), DataBits::Eight, None, StopBits::One),
-            clocks.peripheral_clock.freq(),
-        )
-        .unwrap();
-
+    // let uart = hal::uart::UartPeripheral::new(pac.UART0, uart_pins, &mut pac.RESETS)
+    //     .enable(
+    //         UartConfig::new(9600.Hz(), DataBits::Eight, None, StopBits::One),
+    //         clocks.peripheral_clock.freq(),
+    //     )
+    //     .unwrap();
     // let hc_05 = HC05::new(uart);
 
     // let mut pwm_slices = hal::pwm::Slices::new(pac.PWM, &mut pac.RESETS);
@@ -126,17 +121,24 @@ pub fn main(mut pac: hal::pac::Peripherals) -> ! {
         &mut pac.RESETS,
         clocks.system_clock.freq(),
     );
-    let mut lcd = LcdMessenger::new(i2c, timer);
-    lcd.send_message("Hello, Pico!");
 
-    program_loop(timer, led_pin, pca9685, buttons_contr);
+    let mut broadcaster = Broadcaster::new();
+    let mut logger = Logger;
+    let _ = broadcaster.add_messenger(&mut logger); // This is the 1st messenger, so it should never fail
+
+    let mut lcd = LcdMessenger::new(i2c, timer);
+    if let Err(e) = broadcaster.add_messenger(&mut lcd) {
+        broadcaster.broadcast(e, MessageLevel::Error);
+    }
+
+    program_loop(timer, pca9685, buttons_contr, broadcaster);
 }
 
 fn program_loop<I2C>(
     mut timer: hal::Timer,
-    mut led_pin: impl OutputPin,
     mut pca9685: Pca9685<I2C>,
     mut input_device: impl InputDevice,
+    mut broadcaster: Broadcaster,
     // uart: hal::uart::UartPeripheral<hal::uart::Enabled, D, P>,
     // mut channel: &mut hal::pwm::Channel<
     //     hal::pwm::Slice<hal::pwm::Pwm2, hal::pwm::FreeRunning>,
@@ -147,37 +149,29 @@ where
     I2C: embedded_hal::i2c::I2c,
 {
     loop {
-        // Animate LED0 as before
-        defmt::info!("on!");
-        led_pin.set_high().unwrap();
-        pca9685.set_servo_angle(1, 90.0).unwrap();
-        pca9685.set_servo_angle(0, 90.0).unwrap();
-
-        pca9685.update_all_servos().unwrap();
-        // for i in (LOW..=HIGH).step_by(25) {
-        //     timer.delay_us(500);
-        //     channel.set_duty(i);
-        // }
-        timer.delay_ms(500);
-
-        defmt::info!("off!");
-        led_pin.set_low().unwrap();
-        pca9685.set_servo_angle(1, 45.0).unwrap();
-        pca9685.set_servo_angle(0, 45.0).unwrap();
-        pca9685.update_all_servos().unwrap();
-        // Ramp brightness down
-        // for i in (LOW..=HIGH).rev().step_by(25) {
-        //     timer.delay_us(50);
-        //     channel.set_duty(i);
-        // }
-        timer.delay_ms(500);
-
         let input = input_device.read_input().unwrap();
         match input {
             ControlCommand::Servo(cmd) => {
-                pca9685
-                    .move_servo_by_step(cmd.servo_index, cmd.step)
-                    .unwrap();
+                match pca9685.move_servo_by_step(cmd.servo_index, cmd.step) {
+                    Ok(_) => {
+                        let mut message: String<32> = String::new();
+                        if write!(
+                            &mut message,
+                            "Moved servo {} by step {}",
+                            cmd.servo_index, cmd.step
+                        )
+                        .is_ok()
+                        {
+                            broadcaster.broadcast(message.as_str(), MessageLevel::Debug);
+                        } else {
+                            broadcaster.broadcast(
+                                "Moved servo, but failed to format log message",
+                                MessageLevel::Warning,
+                            );
+                        }
+                    }
+                    Err(e) => broadcaster.broadcast(&e.message(), MessageLevel::Error),
+                }
             }
             ControlCommand::Effector(cmd) => {
                 // Handle effector command
@@ -187,5 +181,6 @@ where
             }
         }
         pca9685.update_all_servos().unwrap();
+        timer.delay_ms(100);
     }
 }

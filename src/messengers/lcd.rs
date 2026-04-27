@@ -42,4 +42,8 @@ where
             .write_str(message, &mut self.timer)
             .expect("failed to write message to LCD");
     }
+
+    fn get_level(&self) -> super::MessageLevel {
+        super::MessageLevel::Info
+    }
 }
